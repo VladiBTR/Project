@@ -8,6 +8,10 @@ packages = [{include = "to_do_list"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
+uvicorn = "^0.23.2"
+fastapi = "^0.100.1"
+pymongo = "^4.4.1"
+npx = "^0.1.1"
 
 
 [build-system]
