@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from pymongo import MongoClient
@@ -6,6 +6,7 @@ from bson import ObjectId
 from datetime import datetime
 import email.utils
 
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from email.utils import formatdate
@@ -69,32 +70,38 @@ class Note(BaseModel):
     created_at: datetime = None 
 
 
-# class NoteInResponse(BaseModel):
-#     _id: str  # Convert _id field to string
-
-#     class Config:
-#         from_attributes = True   
-
 
 
 def get_all_notes() -> List[Note]:
     # Find all note documents in the collection
     all_notes = notes_collection.find({}).sort("created_at", -1)
 
-
-    # Convert each document to a Note object and store them in a list
-    #notes_list = [Note(**note) for note in all_notes]
-    #notes_list = [Note(**note, id=str(note["_id"])) for note in all_notes]
     notes_list = []
     for note in all_notes:
         # Create a new dictionary with **note unpacking and set the 'id' field separately
-        #note_data = {**note, 'id': str(note["_id"])}
         note['_id'] = str(note['_id'])
         # Create a Note instance using the updated dictionary
         note_instance = Note(**note, exclude_unset=True)
         notes_list.append(note_instance)
 
     return notes_list
+
+
+
+@app.get("/search_notes/") 
+async def search_notes(query: str = Query(..., description="Search notes by keyword")):
+    # Perform the search in your MongoDB collection
+    get_all_notes()
+    filtered_notes = list(notes_collection.find({"$or": [{"title": {"$regex": query, "$options": "i"}},
+                                                    {"content": {"$regex": query, "$options": "i"}}]}))
+    
+    notes = []
+    for note in filtered_notes:
+        note["_id"] = str(note["_id"])  # Convert _id to string
+        pydantic_note = Note(**note, exclude_unset=True)
+        notes.append(pydantic_note.dict())
+
+    return notes
 
 
 
@@ -121,8 +128,6 @@ def create_note(note_data: Note):
         note_dict = note_data.dict()
 
         # Set the created_at field using the current datetime in RFC 2822 format
-        #note_dict["created_at"] = email.utils.formatdate()
-        #note_data.created_at = datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S +0000")
         current_datetime_str = email.utils.formatdate(timeval=None, localtime=False, usegmt=True)
         current_datetime = datetime.strptime(current_datetime_str, "%a, %d %b %Y %H:%M:%S %Z")
 
@@ -143,15 +148,10 @@ def create_note(note_data: Note):
 
 
 
-    
-
-
 @app.get("/notes/{note_id}", response_model=Note)
 def read_note(note_id: str):
     print(f"vlezname v: {note_id}")
     return get_note(note_id)
-
-
 
 
 
